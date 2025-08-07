@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Node",
+		"strict": true,
+		"baseUrl": ".",
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"paths": {
+			"@app/*": ["src/app/*"],
+
+			"@config/*": ["src/config/*"],
+			"@config": ["src/config/index.ts"],
+
+			"@plugins/*": ["src/plugins/*"],
+			"@plugins": ["src/plugins/index.ts"],
+
+			"@routes/*": ["src/routes/*"],
+			"@routes": ["src/routes/index.ts"]
+		}
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "dist", "test"]
+}

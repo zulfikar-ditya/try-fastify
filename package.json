@@ -1,0 +1,36 @@
+{
+	"name": "try-fastify",
+	"author": "zulfikar-ditya",
+	"version": "1.0.0",
+	"description": "A Fastify application with TypeScript, Prisma, and Bun",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"start": "bun run src/serve.ts",
+		"dev": "bun run --hot --watch src/serve.ts",
+		"build": "bun build src/serve.ts --outdir=dist --target=node",
+		"test": "bun test",
+		"lint": "bun run eslint . --ext .ts,.js",
+		"format": "bun run prettier --write .",
+		"seed": "bun run ./prisma/seeders//index.ts",
+		"prepare": "husky"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/node": "^24.2.0",
+		"@typescript-eslint/eslint-plugin": "^8.39.0",
+		"@typescript-eslint/parser": "^8.39.0",
+		"eslint": "^9.32.0",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-prettier": "^5.5.4",
+		"prettier": "^3.6.2",
+		"tsx": "^4.20.3"
+	},
+	"peerDependencies": {
+		"typescript": "^5.9.2"
+	},
+	"dependencies": {
+		"fastify": "^5.4.0",
+		"typescript-eslint": "^8.39.0"
+	}
+}
