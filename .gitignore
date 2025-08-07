@@ -11,9 +11,12 @@ coverage
 *.lcov
 
 # logs
-logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+# logs
+# _.log
+# report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+/src/storage/logs/*.log
+
 
 # dotenv environment variable files
 .env
@@ -32,3 +35,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# VS Code
+!.gitkeep
