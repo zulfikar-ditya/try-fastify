@@ -12,14 +12,15 @@
 		"test": "bun test",
 		"lint": "bun run eslint . --ext .ts,.js",
 		"format": "bun run prettier --write .",
-		"seed": "bun run ./prisma/seeders//index.ts",
-		"prepare": "husky"
+		"seed": "bun run ./prisma/seeders//index.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
 		"@types/node": "^24.2.0",
+		"@types/pg": "^8.15.5",
 		"@typescript-eslint/eslint-plugin": "^8.39.0",
 		"@typescript-eslint/parser": "^8.39.0",
+		"drizzle-kit": "^0.31.4",
 		"eslint": "^9.32.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-prettier": "^5.5.4",
@@ -30,7 +31,10 @@
 		"typescript": "^5.9.2"
 	},
 	"dependencies": {
+		"dotenv": "^17.2.1",
+		"drizzle-orm": "^0.44.4",
 		"fastify": "^5.4.0",
+		"pg": "^8.16.3",
 		"typescript-eslint": "^8.39.0"
 	}
 }

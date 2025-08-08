@@ -20,7 +20,13 @@
 			"@plugins": ["src/plugins/index.ts"],
 
 			"@routes/*": ["src/routes/*"],
-			"@routes": ["src/routes/index.ts"]
+			"@routes": ["src/routes/index.ts"],
+
+			"@db/*": ["src/db/*"],
+			"@db": ["src/db/index.ts"],
+
+			"@handlers/*": ["src/handlers/*"],
+			"@handlers": ["src/handlers/index.ts"]
 		}
 	},
 	"include": ["src"],
