@@ -1,0 +1,5 @@
+class ValidationUtils {
+	//
+}
+
+export { ValidationUtils };

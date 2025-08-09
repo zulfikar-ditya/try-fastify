@@ -26,9 +26,12 @@
 			"@db": ["src/db/index.ts"],
 
 			"@handlers/*": ["src/handlers/*"],
-			"@handlers": ["src/handlers/index.ts"]
+			"@handlers": ["src/handlers/index.ts"],
+
+			"@utils/*": ["src/utils/*"],
+			"@utils": ["src/utils/index.ts"]
 		}
 	},
-	"include": ["src"],
+	"include": ["src", "drizzle.config.ts"],
 	"exclude": ["node_modules", "dist", "test"]
 }

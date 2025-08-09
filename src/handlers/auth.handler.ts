@@ -1,46 +1,43 @@
+import { db } from "@db/index";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { usersTable } from "../db/schema/user";
+import { eq } from "drizzle-orm";
+import { HashUtils, ResponseUtils } from "@utils/index";
+import vine from "@vinejs/vine";
+import { StrongPassword } from "@utils";
 
 export const AuthHandler = {
 	schema: {
 		loginSchema: {
-			body: {
-				type: "object",
-				required: ["email", "password"],
-				properties: {
-					email: { type: "string", format: "email" },
-					password: { type: "string", minLength: 6 },
-				},
-			},
+			body: vine.object({
+				email: vine.string().email(),
+				password: vine.string(),
+			}),
 			response: {
 				200: {
 					type: "object",
 					properties: {
 						success: { type: "boolean" },
 						message: { type: "string" },
+						data: {},
 					},
 				},
-				400: {
+			},
+		},
+
+		registerSchema: {
+			body: vine.object({
+				name: vine.string().minLength(1),
+				email: vine.string().email(),
+				password: vine.string().minLength(8).confirmed().regex(StrongPassword),
+			}),
+			response: {
+				201: {
 					type: "object",
 					properties: {
 						success: { type: "boolean" },
 						message: { type: "string" },
-						errors: {
-							type: "array",
-							items: {
-								type: "object",
-								properties: {
-									field: { type: "string" },
-									message: { type: "string" },
-								},
-							},
-						},
-					},
-				},
-				500: {
-					type: "object",
-					properties: {
-						success: { type: "boolean" },
-						message: { type: "string" },
+						data: {},
 					},
 				},
 			},
@@ -48,25 +45,104 @@ export const AuthHandler = {
 	},
 
 	login: async (request: FastifyRequest, reply: FastifyReply) => {
-		try {
-			// Add your login logic here
-			const { email, password } = request.body as {
-				email: string;
-				password: string;
-			};
+		// Add your login logic here
+		const body = request.body as {
+			email: string;
+			password: string;
+		};
 
-			// Example response
-			return reply.code(200).send({
-				success: true,
-				message: "Login successful",
-			});
-		} catch (error) {
-			console.error("Login error:", error);
+		const validate = await vine.validate({
+			schema: AuthHandler.schema.loginSchema.body,
+			data: body,
+		});
 
-			return reply.code(500).send({
+		const user = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.email, validate.email))
+			.limit(1);
+
+		if (user.length === 0) {
+			return reply.code(400).send({
 				success: false,
-				message: "Internal server error",
+				message: "Invalid email or password",
+				errors: [{ field: "email", message: "User not found" }],
 			});
 		}
+
+		if (await HashUtils.compareHash(validate.password, user[0].password)) {
+			return reply.code(400).send({
+				success: false,
+				message: "Invalid email or password",
+				errors: [{ field: "password", message: "Incorrect password" }],
+			});
+		}
+
+		// TODO: generate token and send it in the response
+
+		// Example response
+		return reply.code(200).send({
+			success: true,
+			message: "Login successful",
+		});
+	},
+
+	register: async (request: FastifyRequest, reply: FastifyReply) => {
+		const body = request.body as {
+			name: string;
+			email: string;
+			password: string;
+		};
+
+		const validate = await vine.validate({
+			schema: AuthHandler.schema.registerSchema.body,
+			data: body,
+		});
+
+		const existingUser = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.email, validate.email))
+			.limit(1);
+
+		if (existingUser.length > 0) {
+			ResponseUtils.validationError(reply, [
+				{
+					field: "email",
+					message: "Email already exists",
+				},
+			]);
+		}
+
+		const hashedPassword = await HashUtils.generateHash(validate.password);
+
+		const data = await db.transaction(async (tx) => {
+			await tx.insert(usersTable).values({
+				name: validate.name,
+				email: validate.email,
+				password: hashedPassword,
+			});
+
+			// Todo: send email
+
+			return await tx
+				.select()
+				.from(usersTable)
+				.where(eq(usersTable.email, validate.email))
+				.limit(1);
+		});
+
+		// Todo: generate token and send it in the response
+
+		return ResponseUtils.success(
+			reply,
+			{
+				id: data[0].id,
+				name: data[0].name,
+				email: data[0].email,
+			},
+			"User registered successfully",
+			201,
+		);
 	},
 };

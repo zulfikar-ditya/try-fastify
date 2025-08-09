@@ -1,12 +1,15 @@
-import Fastify, { fastify } from "fastify";
+import Fastify from "fastify";
 import { AppRoutes } from "@routes";
 import { appConfig } from "@config";
+import { errors } from "@vinejs/vine";
+import { DateUtils, LoggerUtils, ResponseUtils } from "@utils";
 
 const app = Fastify({
 	logger: {
 		level: appConfig.LOG_LEVEL,
 		base: null,
-		timestamp: () => `,"time":"${new Date().toISOString()}"`,
+		timestamp: () =>
+			`,"time":"${DateUtils.getDateTimeInformative(DateUtils.now())}"`,
 		formatters: {
 			level: (label) => {
 				return { level: label.toUpperCase() };
@@ -14,11 +17,13 @@ const app = Fastify({
 			log(object) {
 				return {
 					...object,
-					time: new Date().toISOString(),
+					time: DateUtils.getDateTimeInformative(DateUtils.now()),
 				};
 			},
 		},
-		browser: {},
+		browser: {
+			disabled: false,
+		},
 		file: "src/storage/logs/app.log",
 		serializers: {
 			req: (req) => {
@@ -41,79 +46,120 @@ app.register(AppRoutes);
 
 // Error Handler ==========================================
 app.setErrorHandler((error, request, reply) => {
+	// Vine validation error
+	if (error instanceof errors.E_VALIDATION_ERROR) {
+		ResponseUtils.validationError(
+			reply,
+			(error.messages as { field: string; message: string }[]).map(
+				(msg: { field: string; message: string }) => ({
+					field: msg.field,
+					message: msg.message,
+				}),
+			),
+		);
+
+		return;
+	}
+
+	// fastify validation error
 	if (error instanceof Fastify.errorCodes.FST_ERR_NOT_FOUND) {
-		reply.status(404).send({
-			success: false,
-			message: "Not Found",
-			data: null,
-		});
+		ResponseUtils.notFound(reply, error.message);
+		return;
 	}
 
-	if (error instanceof Fastify.errorCodes.FST_ERR_BAD_URL) {
-		reply.status(404).send({
-			success: false,
-			message: "Not Found",
-			data: null,
-		});
-	}
-
-	if (error instanceof Fastify.errorCodes.FST_ERR_INVALID_URL) {
-		reply.status(404).send({
-			success: false,
-			message: "Not Found",
-			data: null,
-		});
+	if (error instanceof Fastify.errorCodes.FST_ERR_BAD_STATUS_CODE) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
 	}
 
 	if (error instanceof Fastify.errorCodes.FST_ERR_VALIDATION) {
-		reply.status(400).send({
-			success: false,
-			message: "Validation Error",
-			errors: error.validation,
-		});
+		ResponseUtils.error(reply, error.message, 400);
+		return;
 	}
 
-	console.log(error);
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_INVALID_TYPE) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
 
-	reply.send(error);
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_EMPTY_TYPE) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_INVALID_HANDLER) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_INVALID_PARSE_TYPE) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_INVALID_MEDIA_TYPE) {
+		ResponseUtils.error(reply, error.message, 415);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_INVALID_CONTENT_LENGTH) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_EMPTY_JSON_BODY) {
+		ResponseUtils.error(reply, "JSON Parse error: " + error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_REP_INVALID_PAYLOAD_TYPE) {
+		ResponseUtils.error(reply, error.message, 400);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_CTP_BODY_TOO_LARGE) {
+		ResponseUtils.error(reply, error.message, 413);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_FAILED_ERROR_SERIALIZATION) {
+		ResponseUtils.error(reply, error.message, 500);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_SEND_UNDEFINED_ERR) {
+		ResponseUtils.error(reply, error.message, 500);
+		return;
+	}
+
+	if (error instanceof Fastify.errorCodes.FST_ERR_REP_ALREADY_SENT) {
+		ResponseUtils.error(reply, error.message, 500);
+		return;
+	}
+
+	if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+		ResponseUtils.error(reply, error.message, error.statusCode);
+		return;
+	}
+
+	request.log.error(
+		`APP Error: ${error.message}, Stack: ${error.stack}, Error name: ${error.name || "undefined"}`,
+	);
+
+	ResponseUtils.error(reply, "Internal Server Error", 500);
 });
 
-// Logger ==================================================
-// app.addHook("onRequest", async (request, reply) => {
-// 	app.log.info({
-// 		method: request.method,
-// 		url: request.url,
-// 		userAgent: request.headers["user-agent"],
-// 		ip: request.ip,
-// 	});
-// });
-
-// app.addHook("onResponse", async (request, reply) => {
-// 	app.log.info({
-// 		method: request.method,
-// 		url: request.url,
-// 		statusCode: reply.statusCode,
-// 	});
-// });
-
-// app.addHook("onError", async (request, reply, error) => {
-// 	app.log.error({
-// 		method: request.method,
-// 		url: request.url,
-// 		error: error.message,
-// 		stack: error.stack,
-// 	});
-// });
 const start = async () => {
 	try {
+		LoggerUtils.info(`Starting server on port ${appConfig.APP_PORT}...`);
 		await app.listen({ port: appConfig.APP_PORT });
-		console.log(`🚀 Server ready at ${appConfig.APP_URL}`);
 	} catch (err) {
 		app.log.error(err);
 		process.exit(1);
 	}
 };
 
+// eslint-disable-next-line
 start().catch((err) => {
 	process.exit(1);
 });
