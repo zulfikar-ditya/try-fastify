@@ -5,7 +5,7 @@ export class ResponseUtils {
 		reply: FastifyReply,
 		data: T | null,
 		message: string = "Success",
-		statusCode: number,
+		statusCode: number = 200,
 	) {
 		reply.code(statusCode).send({
 			status: statusCode,

@@ -1,8 +1,9 @@
-import Fastify from "fastify";
+import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import { AppRoutes } from "@routes";
 import { appConfig } from "@config";
 import { errors } from "@vinejs/vine";
 import { DateUtils, LoggerUtils, ResponseUtils } from "@utils";
+import fastifyJwt from "@fastify/jwt";
 
 const app = Fastify({
 	logger: {
@@ -40,6 +41,21 @@ const app = Fastify({
 		},
 	},
 });
+
+app.register(fastifyJwt, {
+	secret: appConfig.JWT_SECRET,
+});
+
+app.decorate(
+	"authenticate",
+	async function (req: FastifyRequest, reply: FastifyReply) {
+		try {
+			await req.jwtVerify();
+		} catch (err) {
+			reply.send(err);
+		}
+	},
+);
 
 // Routes ==================================================
 app.register(AppRoutes);

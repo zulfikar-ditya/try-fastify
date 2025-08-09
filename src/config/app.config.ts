@@ -7,6 +7,8 @@ interface AppConfigInterface {
 	APP_TIMEZONE: string;
 
 	LOG_LEVEL: "info" | "debug" | "warn" | "error";
+
+	JWT_SECRET: string;
 }
 
 export const appConfig: AppConfigInterface = {
@@ -22,6 +24,9 @@ export const appConfig: AppConfigInterface = {
 			| "staging"
 			| "local") || "development",
 	APP_TIMEZONE: process.env.APP_TIMEZONE || "UTC",
+
 	LOG_LEVEL:
 		(process.env.LOG_LEVEL as "info" | "debug" | "warn" | "error") || "info",
+
+	JWT_SECRET: process.env.JWT_SECRET || "supersecret",
 };

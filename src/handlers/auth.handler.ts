@@ -57,7 +57,12 @@ export const AuthHandler = {
 		});
 
 		const user = await db
-			.select()
+			.select({
+				id: usersTable.id,
+				name: usersTable.name,
+				email: usersTable.email,
+				password: usersTable.password,
+			})
 			.from(usersTable)
 			.where(eq(usersTable.email, validate.email))
 			.limit(1);
@@ -79,11 +84,22 @@ export const AuthHandler = {
 		}
 
 		// TODO: generate token and send it in the response
+		const token = await reply.jwtSign({
+			id: user[0].id,
+		});
 
 		// Example response
 		return reply.code(200).send({
 			success: true,
 			message: "Login successful",
+			data: {
+				user_information: {
+					id: user[0].id,
+					name: user[0].name,
+					email: user[0].email,
+				},
+				token,
+			},
 		});
 	},
 
@@ -133,16 +149,50 @@ export const AuthHandler = {
 		});
 
 		// Todo: generate token and send it in the response
+		const token = await reply.jwtSign({
+			id: data[0].id,
+		});
 
 		return ResponseUtils.success(
 			reply,
 			{
-				id: data[0].id,
-				name: data[0].name,
-				email: data[0].email,
+				user_information: {
+					id: data[0].id,
+					name: data[0].name,
+					email: data[0].email,
+				},
+				token: token,
 			},
 			"User registered successfully",
 			201,
+		);
+	},
+
+	profile: async (request: FastifyRequest, reply: FastifyReply) => {
+		const user = request.user as { id: string; email: string; name: string };
+
+		if (!user) {
+			return ResponseUtils.unauthorized(reply, "User not authenticated");
+		}
+
+		const userData = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.id, user.id))
+			.limit(1);
+
+		if (userData.length === 0) {
+			return ResponseUtils.notFound(reply, "User not found");
+		}
+
+		return ResponseUtils.success(
+			reply,
+			{
+				id: userData[0].id,
+				name: userData[0].name,
+				email: userData[0].email,
+			},
+			"User profile retrieved successfully",
 		);
 	},
 };

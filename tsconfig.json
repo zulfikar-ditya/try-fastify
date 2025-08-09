@@ -29,7 +29,9 @@
 			"@handlers": ["src/handlers/index.ts"],
 
 			"@utils/*": ["src/utils/*"],
-			"@utils": ["src/utils/index.ts"]
+			"@utils": ["src/utils/index.ts"],
+
+			"@/*": ["src/*"]
 		}
 	},
 	"include": ["src", "drizzle.config.ts"],
