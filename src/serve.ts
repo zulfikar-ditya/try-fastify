@@ -4,6 +4,7 @@ import { appConfig } from "@config";
 import { errors } from "@vinejs/vine";
 import { DateUtils, LoggerUtils, ResponseUtils } from "@utils";
 import fastifyJwt from "@fastify/jwt";
+import mailPlugin from "@plugins/mail.plugin";
 
 const app = Fastify({
 	logger: {
@@ -46,6 +47,7 @@ app.register(fastifyJwt, {
 	secret: appConfig.JWT_SECRET,
 });
 
+// PLUGIN DECORATOR =====================================================
 app.decorate(
 	"authenticate",
 	async function (req: FastifyRequest, reply: FastifyReply) {
@@ -56,6 +58,8 @@ app.decorate(
 		}
 	},
 );
+
+app.register(mailPlugin);
 
 // Routes ==================================================
 app.register(AppRoutes);

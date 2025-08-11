@@ -1,11 +1,10 @@
 import { pgTable, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
-export const usersTable = pgTable("users", {
+export const emailVerifyToken = pgTable("email_verify_tokens", {
 	id: uuid("id").primaryKey().defaultRandom(),
-	name: varchar({ length: 255 }).notNull(),
-	email: varchar({ length: 255 }).notNull().unique(),
-	password: varchar({ length: 255 }).notNull(),
-	emailVerifiedAt: timestamp(),
+	userId: uuid("user_id").notNull(),
+	token: varchar({ length: 255 }).notNull(),
+	expiresAt: timestamp().notNull(),
 	createdAt: timestamp().notNull().defaultNow(),
 	updatedAt: timestamp()
 		.defaultNow()

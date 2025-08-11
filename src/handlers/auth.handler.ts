@@ -1,10 +1,11 @@
 import { db } from "@db/index";
-import { FastifyReply, FastifyRequest } from "fastify";
+import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import { usersTable } from "../db/schema/user";
 import { eq } from "drizzle-orm";
-import { HashUtils, ResponseUtils } from "@utils/index";
+import { HashUtils, ResponseUtils, StrUtils } from "@utils/index";
 import vine from "@vinejs/vine";
 import { StrongPassword } from "@utils";
+import { emailVerifyToken } from "@db/schema/email-verify-token";
 
 export const AuthHandler = {
 	schema: {
@@ -139,27 +140,46 @@ export const AuthHandler = {
 				password: hashedPassword,
 			});
 
-			// Todo: send email
-
-			return await tx
+			const rawUser = await tx
 				.select()
 				.from(usersTable)
 				.where(eq(usersTable.email, validate.email))
 				.limit(1);
+
+			if (rawUser.length === 0) {
+				throw new Error("User registration failed");
+			}
+
+			const user = rawUser[0];
+
+			const tokenVerify = StrUtils.random(64);
+			await tx.insert(emailVerifyToken).values({
+				userId: user.id,
+				token: tokenVerify,
+				expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+			});
+
+			await request.server.emailService.sendMail({
+				to: user.email,
+				subject: "Verify your email",
+				html: `<p>Click <a href="${process.env.APP_URL}/verify-email?token=${tokenVerify}">here</a> to verify your email.</p>`,
+			});
+
+			return user;
 		});
 
 		// Todo: generate token and send it in the response
 		const token = await reply.jwtSign({
-			id: data[0].id,
+			id: data.id,
 		});
 
 		return ResponseUtils.success(
 			reply,
 			{
 				user_information: {
-					id: data[0].id,
-					name: data[0].name,
-					email: data[0].email,
+					id: data.id,
+					name: data.name,
+					email: data.email,
 				},
 				token: token,
 			},
