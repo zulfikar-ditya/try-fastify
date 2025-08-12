@@ -1,7 +1,7 @@
 import { db } from "@db/index";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { usersTable } from "../db/schema/user";
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { HashUtils, ResponseUtils, StrUtils } from "@utils/index";
 import vine from "@vinejs/vine";
 import { StrongPassword } from "@utils";
@@ -274,29 +274,15 @@ export const AuthHandler = {
 	},
 
 	profile: async (request: FastifyRequest, reply: FastifyReply) => {
-		const user = request.user as { id: string; email: string; name: string };
-
-		if (!user) {
-			return ResponseUtils.unauthorized(reply, "User not authenticated");
-		}
-
-		const userData = await db
-			.select()
-			.from(usersTable)
-			.where(eq(usersTable.id, user.id))
-			.limit(1);
-
-		if (userData.length === 0) {
-			return ResponseUtils.notFound(reply, "User not found");
-		}
+		const user = request.user as {
+			id: string;
+			name: string;
+			email: string;
+		};
 
 		return ResponseUtils.success(
 			reply,
-			{
-				id: userData[0].id,
-				name: userData[0].name,
-				email: userData[0].email,
-			},
+			user,
 			"User profile retrieved successfully",
 		);
 	},

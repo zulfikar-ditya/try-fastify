@@ -33,7 +33,9 @@
 		"typescript": "^5.9.2"
 	},
 	"dependencies": {
+		"@fastify/cors": "^11.1.0",
 		"@fastify/jwt": "^9.1.0",
+		"@fastify/redis": "^7.0.2",
 		"@vinejs/vine": "^3.0.1",
 		"bcryptjs": "^3.0.2",
 		"crypto-js": "^4.2.0",

@@ -17,6 +17,6 @@ export class EmailService {
 	}
 
 	async sendMail(options: SendMailOptions) {
-		return this.transporter.sendMail(options);
+		await this.transporter.sendMail(options);
 	}
 }

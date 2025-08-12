@@ -1,10 +1,14 @@
 import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import { AppRoutes } from "@routes";
-import { appConfig } from "@config";
+import { appConfig, corsConfig, redisConfig } from "@config";
 import { errors } from "@vinejs/vine";
 import { DateUtils, LoggerUtils, ResponseUtils } from "@utils";
 import fastifyJwt from "@fastify/jwt";
 import mailPlugin from "@plugins/mail.plugin";
+import fastifyCors from "@fastify/cors";
+import fastifyRedis from "@fastify/redis";
+import { db, usersTable } from "./db";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 const app = Fastify({
 	logger: {
@@ -47,12 +51,78 @@ app.register(fastifyJwt, {
 	secret: appConfig.JWT_SECRET,
 });
 
+app.register(fastifyCors, {
+	origin: (origin, cb) => {
+		if (!origin) return cb(null, true);
+
+		const hostname = new URL(origin).hostname;
+		const allowedOrigins = corsConfig.ALLOWED_HOST;
+		if (allowedOrigins.includes(hostname)) {
+			cb(null, true);
+		} else {
+			cb(new Error("Not allowed by CORS"), false);
+		}
+	},
+	methods: corsConfig.ALLOWED_METHODS,
+	allowedHeaders: corsConfig.ALLOWED_HEADERS,
+	exposedHeaders: corsConfig.EXPOSED_HEADERS,
+	credentials: corsConfig.ALLOW_CREDENTIALS,
+	maxAge: corsConfig.MAX_AGE,
+});
+
+app.register(fastifyRedis, {
+	host: redisConfig.HOST,
+	port: redisConfig.PORT,
+	password: redisConfig.PASSWORD,
+	db: redisConfig.DB,
+	ttl: redisConfig.TTL,
+});
+
 // PLUGIN DECORATOR =====================================================
 app.decorate(
 	"authenticate",
 	async function (req: FastifyRequest, reply: FastifyReply) {
 		try {
 			await req.jwtVerify();
+			const userJwt = req.user as { id: string };
+
+			const sessionKey = `session:${userJwt.id}`;
+			const cacheUser = await this.redis.get(sessionKey);
+
+			if (!cacheUser) {
+				const userData = await db
+					.select({
+						id: usersTable.id,
+						name: usersTable.name,
+						email: usersTable.email,
+					})
+					.from(usersTable)
+					.where(
+						and(
+							eq(usersTable.id, userJwt.id),
+							isNotNull(usersTable.emailVerifiedAt),
+						),
+					)
+					.limit(1);
+
+				if (userData.length === 0) {
+					ResponseUtils.unauthorized(
+						reply,
+						"User not found or email not verified",
+					);
+					return;
+				}
+
+				await this.redis.set(
+					sessionKey,
+					JSON.stringify(userData[0]),
+					"EX",
+					redisConfig.TTL,
+				);
+				req.user = userData[0];
+			} else {
+				req.user = JSON.parse(cacheUser);
+			}
 		} catch (err) {
 			reply.send(err);
 		}
