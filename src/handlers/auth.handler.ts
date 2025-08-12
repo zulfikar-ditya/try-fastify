@@ -1,11 +1,12 @@
 import { db } from "@db/index";
-import fastify, { FastifyReply, FastifyRequest } from "fastify";
+import { FastifyReply, FastifyRequest } from "fastify";
 import { usersTable } from "../db/schema/user";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { HashUtils, ResponseUtils, StrUtils } from "@utils/index";
 import vine from "@vinejs/vine";
 import { StrongPassword } from "@utils";
 import { emailVerifyToken } from "@db/schema/email-verify-token";
+import { appConfig } from "@config/app.config";
 
 export const AuthHandler = {
 	schema: {
@@ -43,10 +44,25 @@ export const AuthHandler = {
 				},
 			},
 		},
+
+		verifyEmailSchema: {
+			params: vine.object({
+				token: vine.string().minLength(1),
+			}),
+			response: {
+				200: {
+					type: "object",
+					properties: {
+						success: { type: "boolean" },
+						message: { type: "string" },
+						data: {},
+					},
+				},
+			},
+		},
 	},
 
 	login: async (request: FastifyRequest, reply: FastifyReply) => {
-		// Add your login logic here
 		const body = request.body as {
 			email: string;
 			password: string;
@@ -65,7 +81,12 @@ export const AuthHandler = {
 				password: usersTable.password,
 			})
 			.from(usersTable)
-			.where(eq(usersTable.email, validate.email))
+			.where(
+				and(
+					isNotNull(usersTable.emailVerifiedAt),
+					eq(usersTable.email, validate.email),
+				),
+			)
 			.limit(1);
 
 		if (user.length === 0) {
@@ -76,7 +97,11 @@ export const AuthHandler = {
 			});
 		}
 
-		if (await HashUtils.compareHash(validate.password, user[0].password)) {
+		const isPasswordValid = await HashUtils.compareHash(
+			validate.password,
+			user[0].password,
+		);
+		if (!isPasswordValid) {
 			return reply.code(400).send({
 				success: false,
 				message: "Invalid email or password",
@@ -84,12 +109,10 @@ export const AuthHandler = {
 			});
 		}
 
-		// TODO: generate token and send it in the response
 		const token = await reply.jwtSign({
 			id: user[0].id,
 		});
 
-		// Example response
 		return reply.code(200).send({
 			success: true,
 			message: "Login successful",
@@ -132,8 +155,8 @@ export const AuthHandler = {
 		}
 
 		const hashedPassword = await HashUtils.generateHash(validate.password);
-
 		const data = await db.transaction(async (tx) => {
+			// insert user and get inserted data.
 			await tx.insert(usersTable).values({
 				name: validate.name,
 				email: validate.email,
@@ -152,6 +175,7 @@ export const AuthHandler = {
 
 			const user = rawUser[0];
 
+			// create token and send email
 			const tokenVerify = StrUtils.random(64);
 			await tx.insert(emailVerifyToken).values({
 				userId: user.id,
@@ -162,15 +186,10 @@ export const AuthHandler = {
 			await request.server.emailService.sendMail({
 				to: user.email,
 				subject: "Verify your email",
-				html: `<p>Click <a href="${process.env.APP_URL}/verify-email?token=${tokenVerify}">here</a> to verify your email.</p>`,
+				html: `<p>Click <a href="${appConfig.CLIENT_URL}/verify-email?token=${tokenVerify}">here</a> to verify your email.</p>`,
 			});
 
 			return user;
-		});
-
-		// Todo: generate token and send it in the response
-		const token = await reply.jwtSign({
-			id: data.id,
 		});
 
 		return ResponseUtils.success(
@@ -181,10 +200,76 @@ export const AuthHandler = {
 					name: data.name,
 					email: data.email,
 				},
-				token: token,
 			},
-			"User registered successfully",
+			"User registered successfully, please check your email to verify your account.",
 			201,
+		);
+	},
+
+	verifyEmail: async (request: FastifyRequest, reply: FastifyReply) => {
+		const validate = await vine.validate({
+			schema: AuthHandler.schema.verifyEmailSchema.params,
+			data: request.body,
+		});
+
+		const token = validate.token;
+		const emailVerifyTokenData = await db
+			.select()
+			.from(emailVerifyToken)
+			.where(eq(emailVerifyToken.token, token))
+			.limit(1);
+
+		if (emailVerifyTokenData.length === 0) {
+			return ResponseUtils.validationError(reply, [
+				{
+					field: "token",
+					message: "Invalid or expired token",
+				},
+			]);
+		}
+
+		if (emailVerifyTokenData[0].expiresAt < new Date()) {
+			return ResponseUtils.validationError(reply, [
+				{
+					field: "token",
+					message: "Invalid or expired token",
+				},
+			]);
+		}
+
+		const user = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.id, emailVerifyTokenData[0].userId))
+			.limit(1);
+
+		if (user.length === 0) {
+			return ResponseUtils.notFound(reply, "User not found");
+		}
+
+		await db.transaction(async (tx) => {
+			await tx
+				.update(usersTable)
+				.set({
+					emailVerifiedAt: new Date(),
+				})
+				.where(eq(usersTable.id, user[0].id));
+
+			await tx
+				.delete(emailVerifyToken)
+				.where(eq(emailVerifyToken.id, emailVerifyTokenData[0].id));
+		});
+
+		return ResponseUtils.success(
+			reply,
+			{
+				user_information: {
+					id: user[0].id,
+					name: user[0].name,
+					email: user[0].email,
+				},
+			},
+			"Email verified successfully",
 		);
 	},
 

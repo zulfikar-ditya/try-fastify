@@ -9,6 +9,8 @@ interface AppConfigInterface {
 	LOG_LEVEL: "info" | "debug" | "warn" | "error";
 
 	JWT_SECRET: string;
+
+	CLIENT_URL: string;
 }
 
 export const appConfig: AppConfigInterface = {
@@ -29,4 +31,6 @@ export const appConfig: AppConfigInterface = {
 		(process.env.LOG_LEVEL as "info" | "debug" | "warn" | "error") || "info",
 
 	JWT_SECRET: process.env.JWT_SECRET || "supersecret",
+
+	CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
 };
