@@ -14,6 +14,9 @@ export const AppRoutes: FastifyPluginAsync = async (fastify) => {
 	fastify.post("/login", AuthHandler.login);
 	fastify.post("/register", AuthHandler.register);
 	fastify.post("/verify-email", AuthHandler.verifyEmail);
+	fastify.post("/forgot-password", AuthHandler.forgotPassword);
+	fastify.post("/reset-password", AuthHandler.resetPassword);
+
 	fastify.get(
 		"/profile",
 		{ preHandler: [fastify.authenticate.bind(fastify)] },

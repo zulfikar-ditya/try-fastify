@@ -7,6 +7,7 @@ import vine from "@vinejs/vine";
 import { StrongPassword } from "@utils";
 import { emailVerifyToken } from "@db/schema/email-verify-token";
 import { appConfig } from "@config/app.config";
+import { PasswordResetToken } from "@db/schema/password-reset-token";
 
 export const AuthHandler = {
 	schema: {
@@ -59,6 +60,19 @@ export const AuthHandler = {
 					},
 				},
 			},
+		},
+
+		forgotPasswordSchema: {
+			body: vine.object({
+				email: vine.string().email(),
+			}),
+		},
+
+		resetPasswordSchema: {
+			body: vine.object({
+				token: vine.string().minLength(1),
+				password: vine.string().minLength(8).confirmed().regex(StrongPassword),
+			}),
 		},
 	},
 
@@ -271,6 +285,109 @@ export const AuthHandler = {
 			},
 			"Email verified successfully",
 		);
+	},
+
+	forgotPassword: async (request: FastifyRequest, reply: FastifyReply) => {
+		const body = request.body as {
+			email: string;
+		};
+
+		const validate = await vine.validate({
+			schema: AuthHandler.schema.forgotPasswordSchema.body,
+			data: body,
+		});
+
+		const user = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.email, validate.email))
+			.limit(1);
+
+		if (user.length === 0) {
+			return ResponseUtils.success(
+				reply,
+				{},
+				"Password reset email sent successfully",
+			);
+		}
+
+		// Generate password reset token
+		const token = StrUtils.random(64);
+		await db.insert(PasswordResetToken).values({
+			userId: user[0].id,
+			token,
+			expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+		});
+
+		// Send password reset email
+		await request.server.emailService.sendMail({
+			to: user[0].email,
+			subject: "Reset your password",
+			html: `<p>Click <a href="${appConfig.CLIENT_URL}/reset-password?token=${token}">here</a> to reset your password.</p>`,
+		});
+
+		return ResponseUtils.success(
+			reply,
+			{},
+			"Password reset email sent successfully",
+		);
+	},
+
+	resetPassword: async (request: FastifyRequest, reply: FastifyReply) => {
+		const body = request.body as {
+			token: string;
+			password: string;
+		};
+
+		const validate = await vine.validate({
+			schema: AuthHandler.schema.resetPasswordSchema.body,
+			data: body,
+		});
+
+		// find token
+		const passwordResetTokenData = await db
+			.select({
+				id: PasswordResetToken.id,
+				userId: PasswordResetToken.userId,
+				expiresAt: PasswordResetToken.expiresAt,
+			})
+			.from(PasswordResetToken)
+			.where(eq(PasswordResetToken.token, validate.token))
+			.limit(1);
+
+		if (passwordResetTokenData.length === 0) {
+			return ResponseUtils.validationError(reply, [
+				{
+					field: "token",
+					message: "Invalid or expired token",
+				},
+			]);
+		}
+
+		const user = await db
+			.select()
+			.from(usersTable)
+			.where(eq(usersTable.id, passwordResetTokenData[0].userId))
+			.limit(1);
+
+		if (user.length === 0) {
+			return ResponseUtils.notFound(reply, "User not found");
+		}
+
+		await db.transaction(async (tx) => {
+			await tx
+				.update(usersTable)
+				.set({
+					password: await HashUtils.generateHash(validate.password),
+				})
+				.where(eq(usersTable.id, user[0].id));
+
+			await tx
+				.delete(PasswordResetToken)
+				.where(eq(PasswordResetToken.id, passwordResetTokenData[0].id));
+		});
+
+		return ResponseUtils.success(reply, {}, "Password reset successfully");
 	},
 
 	profile: async (request: FastifyRequest, reply: FastifyReply) => {
